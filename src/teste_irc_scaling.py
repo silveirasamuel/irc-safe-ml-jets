@@ -20,13 +20,13 @@ from common import kin, featurize, EFN, PFN
 PAD = 60
 
 W = torch.load("results/efn_pesos.pt"); mu, sd = W["mu"], W["sd"]
-efn=EFN(); efn.load_state_dict(W["efn"]); efn.eval()
-pfn=PFN(); pfn.load_state_dict(W["pfn"]); pfn.eval()
+efn=EFN().double(); efn.load_state_dict(W["efn"]); efn.eval()   # float64: revela a lei de potencia
+pfn=PFN().double(); pfn.load_state_dict(W["pfn"]); pfn.eval()   # sem o piso do float32
 
 def pred(model, feats):
-    A=torch.tensor(np.stack([f[0] for f in feats]))
-    Z=torch.tensor(np.stack([f[1] for f in feats]))
-    M=torch.tensor(np.stack([f[2] for f in feats]))
+    A=torch.tensor(np.stack([f[0] for f in feats])).double()
+    Z=torch.tensor(np.stack([f[1] for f in feats])).double()
+    M=torch.tensor(np.stack([f[2] for f in feats])).double()
     with torch.no_grad(): return (sd*model(A,Z,M)+mu).numpy()
 
 # ---- carrega jatos de teste ----
@@ -90,8 +90,8 @@ def fit_slope(x, yv, mask):
     lx=np.log(np.array(x)[mask]); ly=np.log(np.clip(np.array(yv)[mask],1e-30,None))
     return float(np.polyfit(lx, ly, 1)[0])
 # janela limpa: acima do piso de float32, abaixo da saturacao
-soft_slope =fit_slope(pts,    ir_efn, (pts>=1e-5)&(pts<=1e-2))
-theta_slope=fit_slope(thetas, th_efn, (thetas>=1e-2)&(thetas<=1e-1))
+soft_slope =fit_slope(pts,    ir_efn, (pts>=1e-6)&(pts<=1e-3))     # regime linear, longe da saturacao
+theta_slope=fit_slope(thetas, th_efn, (thetas>=1e-3)&(thetas<=3e-2))
 pfn_soft_plateau =float(np.mean(np.array(ir_pfn)[pts<=1e-3]))
 pfn_theta_plateau=float(np.mean(np.array(th_pfn)[thetas<=1e-3]))
 

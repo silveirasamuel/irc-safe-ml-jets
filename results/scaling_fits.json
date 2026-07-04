@@ -1,6 +1,6 @@
 {
-  "soft_slope": 0.8364380956194896,
-  "theta_slope": 1.5832100475290896,
-  "pfn_soft_plateau": 2.566866636276245,
-  "pfn_theta_plateau": 0.28961002826690674
+  "soft_slope": 0.980431054520546,
+  "theta_slope": 0.9560681993380328,
+  "pfn_soft_plateau": 2.566866839342727,
+  "pfn_theta_plateau": 0.2896100239181506
 }

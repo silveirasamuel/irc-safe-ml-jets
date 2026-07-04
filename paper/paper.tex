@@ -108,7 +108,8 @@ a sharp, reusable \emph{diagnostic} of safety. We contribute (a) a quantitative 
 test battery, built from the explicit perturbations~\eqref{eq:coll}--\eqref{eq:ir} and their
 scaling laws; (b) using it, a controlled comparison in which an energy-weighted network is
 safe to machine precision while an otherwise-identical unconstrained network is not ---
-isolating energy weighting as the single decisive architectural ingredient; and (c) a
+isolating how energy enters the aggregation, as a multiplicative weight rather than a summed
+feature, as the decisive factor; and (c) a
 learnable-yet-provably-safe jet \emph{algorithm}, obtained by optimizing the
 generalized-$\kt$ family against a physics objective.
 
@@ -195,6 +196,9 @@ Figure~\ref{fig:dbscan} quantifies this against \antikt{} on the low-$\pt$ sampl
 \antikt{} is invariant to machine precision under both perturbations ($D=0$ in $100\%$ of
 events); DBSCAN changes the jets in $\mathbf{6.3\%}$ of events under a single $10^{-3}$~GeV
 addition, with a tail of $D$ reaching tens of GeV where a soft particle bridges two jets.
+The precise fraction depends on the DBSCAN neighbourhood parameters ($\varepsilon$ and the
+minimum number of neighbours); the qualitative failure --- a nonzero, unbounded response to
+an infinitesimal input --- does not, and is what the battery is built to expose.
 Density-based clustering is thus IRC-\unsafe{} --- it inherits the wrong symmetry.
 
 \begin{figure}[h]
@@ -269,7 +273,10 @@ the energy fraction and aggregates with unit weight,
 It violates both limits: a soft addition contributes a fixed
 $\Phi(0,\hat y,\hat\phi)\neq0$ that does not vanish as $\ptsoft\to0$, and a collinear
 splitting gives $\Phi(z^{(1)}\!,\cdot)+\Phi(z^{(2)}\!,\cdot)\neq\Phi(z,\cdot)$ because
-$\Phi$ is nonlinear in $z$.
+$\Phi$ is nonlinear in $z$. The EFN and PFN are the two canonical Deep-Sets variants of
+Ref.~\cite{efn}; they differ precisely in whether energy is the aggregation \emph{weight}
+[Eq.~\eqref{eq:efn}] or a summed per-particle \emph{feature} [Eq.~\eqref{eq:pfn}], and it is
+that choice --- not depth, width or training --- that decides safety.
 
 \subsection{Equal accuracy, unequal safety}\label{sec:equal}
 Both networks share the same backbone (per-particle MLP $2/3\!\to\!128\!\to\!128\!\to\!128$,
@@ -322,27 +329,28 @@ PFN (\unsafe) & 0.995 & 5.25 & 0.225            & 6.429 \\
 
 \subsection{The scaling law is the proof}
 A single perturbation size is suggestive; the limit is decisive. Figure~\ref{fig:scaling}
-probes both limits over many decades. Under a soft emission (left) the EFN response falls as
-a power law toward zero, reaching $1.4\times10^{-4}$~GeV at $\ptsoft=10^{-6}$~GeV, while the
-PFN saturates at a plateau of $\approx2.6$~GeV that is independent of $\ptsoft$: the
-contribution $\Phi(0,\cdot)$ of a zero-energy particle does not disappear. Under a collinear
-splitting of opening angle $\theta$ (centre) the same pattern recurs --- the EFN vanishes as
-a power law, falling faster than the linear reference (consistent with the leading
-$\propto\theta^{2}$ behaviour expected when the two collinear daughters straddle the parent
-symmetrically), whereas the PFN plateaus at $\approx0.29$~GeV. For an exactly collinear split
-($\theta=0$, right) the EFN is invariant to machine precision ($\approx5\times10^{-8}$~GeV)
-for every momentum fraction $z$; the PFN is not ($\approx0.3$~GeV). The vanishing of the EFN
-response in \emph{both} limits is the operational content of
-Eqs.~\eqref{eq:coll}--\eqref{eq:ir}; the PFN's two finite plateaus are the receipts of its
-unsafety.
+probes both limits over many decades, in double precision to expose the true power law.
+Under a soft emission (left) the EFN response falls linearly,
+$\langle|\Delta m|\rangle\propto\ptsoft$ (fitted slope $0.98$), while the PFN saturates at a
+plateau of $\approx2.6$~GeV independent of $\ptsoft$: the contribution $\Phi(0,\cdot)$ of a
+zero-energy particle does not disappear. Under a collinear splitting of opening angle
+$\theta$ (centre) the EFN again vanishes as a power law (fitted slope $0.96$); the linear
+rather than quadratic scaling reflects the piecewise-linear \textsc{ReLU} map $\Phi$ --- a
+smooth activation would give the $\theta^{2}$ of a symmetric split --- whereas the PFN
+plateaus at $\approx0.29$~GeV. For an exactly collinear split ($\theta=0$, right) the EFN is
+invariant to machine precision ($\lesssim10^{-7}$~GeV) for every momentum fraction $z$; the
+PFN is not ($\approx0.3$~GeV). The vanishing of the EFN response in \emph{both} limits is the
+operational content of Eqs.~\eqref{eq:coll}--\eqref{eq:ir}; the PFN's two finite plateaus are
+the receipts of its unsafety.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=\linewidth]{teste_irc_scaling.png}
 \caption{IRC safety as scaling laws. Left: mean predicted-mass shift vs.\ the soft particle's
 $\pt$ (log--log); the EFN vanishes as a power law, the PFN plateaus at $\approx2.6$~GeV.
-Centre: shift vs.\ the collinear opening angle $\theta$; the EFN falls faster than the linear
-reference toward zero, the PFN plateaus at $\approx0.29$~GeV. Right: shift vs.\ the
+Centre: shift vs.\ the collinear opening angle $\theta$; the EFN vanishes linearly (the
+\textsc{ReLU} map gives $\theta^{1}$ rather than $\theta^{2}$), the PFN plateaus at
+$\approx0.29$~GeV. Right: shift vs.\ the
 exactly-collinear momentum fraction $z$ ($\theta=0$); the EFN is flat at machine precision,
 the PFN is not.}
 \label{fig:scaling}
@@ -375,11 +383,13 @@ is a sequential-recombination algorithm and hence IRC-safe by construction --- t
 is a hard constraint on the search space, not a term in the loss.
 
 The optimum (Fig.~\ref{fig:phasea}, left) lands at $p^{\ast}=-1.0$, $R^{\ast}=1.0$: the
-optimization \textbf{rediscovers the \antikt{} energy exponent} from scratch and prefers a
-radius only slightly larger than the conventional $R=0.8$, improving the response RMS from
-$\mathcal{L}=0.076$ to $0.073$. The exponent $p$ is weakly constrained by energy response
---- a quantitative statement of why \antikt's soft-resilient, rigid-cone behaviour is a
-robust default. The IRC battery (Fig.~\ref{fig:phasea}, right; Table~\ref{tab:phasea})
+search recovers the \antikt{} energy exponent and prefers a radius only slightly larger than
+the conventional $R=0.8$. The improvement is marginal, however ($\mathcal{L}=0.076\to0.073$),
+and the exponent $p$ is weakly constrained --- the objective is shallow across the whole
+family. That shallowness is itself the message: it quantifies why \antikt's soft-resilient,
+rigid-cone behaviour is such a robust default. The learned algorithm is best read not as
+\emph{beating} \antikt{} but as \emph{rediscovering} it from a physics objective while never
+leaving the IRC-safe family. The IRC battery (Fig.~\ref{fig:phasea}, right; Table~\ref{tab:phasea})
 confirms that the learned algorithm, together with the whole recombination family, has a
 soft response of $\approx10^{-4}$~GeV --- consistent with floating-point noise --- while
 DBSCAN sits nearly four orders of magnitude higher. Because the learned algorithm shares the
@@ -442,7 +452,9 @@ without detector effects or pileup, whose interaction with IRC safety is an impo
 separate axis. Finally, all quoted numbers derive from the finite samples of
 Table~\ref{tab:samples}; the sensitivity of the network results to initialization is
 quantified in Sec.~\ref{sec:equal}, and the central claim of the scaling laws --- exact
-vanishing versus a finite plateau --- does not depend on sample size.
+vanishing versus a finite plateau --- does not depend on sample size. All results also use a
+single event generator (\textsc{Pythia}~8); a cross-check against an independent
+parton-shower and hadronization model would probe generator dependence.
 
 \paragraph{Takeaway.}
 IRC safety is an exact symmetry of the physics, not a statistic. A model is safe only if its
