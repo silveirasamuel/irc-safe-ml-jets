@@ -34,10 +34,12 @@ never chased as a training target.
 
 ```
 src/         analysis + paper-build scripts (run from the repo root)
+  common.py    shared kinematics, featurisation and the EFN/PFN models
 figures/     generated figures (PNG) used in the paper
 results/     numerical outputs (JSON) and trained network weights (.pt)
 paper/       LaTeX source, compiled PDF, and self-contained HTML
 data/        PYTHIA/FastJet datasets (.npz) — not tracked (regenerate, see below)
+legacy/      the original exploratory script, kept for provenance only
 ```
 
 ## Requirements

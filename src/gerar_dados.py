@@ -21,9 +21,9 @@ Formato de saida (.npz, "ragged" via offsets estilo CSR)
   jet_const_index   int64   (Mconst,)     indice GLOBAL na array `particles`
   meta              str                   json com toda a configuracao + estatisticas
 
-Uso:
-    python3 gerar_dados.py [N_EVENTOS] [SAIDA.npz]
-    (padrao: 20000 eventos -> dados_jatos.npz)
+Uso (da raiz do repo):
+    python src/gerar_dados.py [N_EVENTOS] [data/SAIDA.npz]
+    (padrao: 20000 eventos -> data/dados_jatos.npz)
 """
 
 import os
@@ -37,7 +37,7 @@ import fastjet as fj
 # ----------------------------------------------------------------------
 # Parametros (defaults = regiao fiducial do EXP_JATOS/inclusive_jets.py).
 # Sobrescreva por env vars: PTHAT_MIN, JET_R, JET_PT_MIN, JET_Y_MAX, ECM, SEED.
-# Ex.: PTHAT_MIN=450 JET_R=0.8 JET_PT_MIN=450 python3 gerar_dados.py 50000 dados_boosted.npz
+# Ex.: PTHAT_MIN=450 JET_R=0.8 JET_PT_MIN=450 python src/gerar_dados.py 50000 data/dados_boosted.npz
 # ----------------------------------------------------------------------
 def _env(name, default):
     return type(default)(os.environ.get(name, default))

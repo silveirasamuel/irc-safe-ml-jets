@@ -14,7 +14,7 @@ Compara anti-kt (FastJet) vs DBSCAN fisico em (y, phi) com eps ~ R.
 Metrica de mudanca: "distancia entre conjuntos de jatos" D (casamento guloso
 por dR; jatos nao-casados contribuem com seu proprio pT). D=0 => invariante.
 
-Roda no venv:  ./venv/bin/python licao_irc_dbscan.py [N_EVENTOS]
+Roda da raiz do repo:  python src/licao_irc_dbscan.py [N_EVENTOS]
 """
 
 import sys

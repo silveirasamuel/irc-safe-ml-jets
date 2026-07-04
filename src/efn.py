@@ -18,22 +18,19 @@ Contraste: uma PFN (Particle Flow Network) que ve z e soma SEM peso de energia
 Ambas ajustam a massa; so a EFN passa no teste de IRC. Mesmo teste do
 licao_irc_dbscan.py, agora aplicado a rede.
 
-Roda no venv:  ./venv/bin/python efn.py
+Roda da raiz do repo:  DATA=data/dados_boosted.npz TARGET=moverpt python src/efn.py
 """
 
 import os
-import json
 import numpy as np
 import torch
 import torch.nn as nn
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from common import kin, featurize, EFN, PFN   # cinematica + modelos compartilhados
 
 torch.manual_seed(0); np.random.seed(0)
-PAD = 60                      # max constituintes por jato (p100=59)
-L = 128                       # dimensao do espaco latente Phi
-RINV = 2.5                    # 1/R: normaliza angulos p/ O(1) na entrada
 DEV = "cuda" if torch.cuda.is_available() else "cpu"   # usa a GPU se disponivel
 
 # Config por env var:
@@ -58,30 +55,6 @@ Njet = len(J)
 PAD = int(np.diff(JCO).max()) + 2   # cobre TODOS os constituintes (+split) -> sem truncar -> colinear exato
 print(f"   PAD adaptativo = {PAD}")
 
-def kin(p4):  # -> pt, y, phi  (vetorizado em (N,4))
-    px, py, pz, E = p4[...,0], p4[...,1], p4[...,2], p4[...,3]
-    pt = np.hypot(px, py)
-    y = 0.5*np.log(np.clip((E+pz)/np.clip(E-pz,1e-12,None),1e-12,None))
-    return pt, y, np.arctan2(py, px)
-
-def dphi(a, b):
-    return np.arctan2(np.sin(a-b), np.cos(a-b))
-
-def featurize(const_p4, axis_y, axis_phi):
-    """constituintes (n,4) + eixo do jato -> (ang(PAD,2), z(PAD), mask(PAD))."""
-    pt, y, phi = kin(const_p4)
-    order = np.argsort(-pt)[:PAD]                 # mantem os PAD mais duros
-    pt, y, phi = pt[order], y[order], phi[order]
-    z = pt / pt.sum()
-    n = len(pt)
-    ang = np.zeros((PAD, 2), np.float32)
-    zz  = np.zeros(PAD, np.float32)
-    msk = np.zeros(PAD, np.float32)
-    ang[:n, 0] = (y - axis_y)
-    ang[:n, 1] = dphi(phi, axis_phi)
-    zz[:n] = z; msk[:n] = 1.0
-    return ang, zz, msk
-
 # cinematica do jato
 jpx, jpy, jpz, jE = J[:,0], J[:,1], J[:,2], J[:,3]
 m_jet = np.sqrt(np.clip(jE**2 - jpx**2 - jpy**2 - jpz**2, 0, None)).astype(np.float32)
@@ -101,7 +74,7 @@ Z   = np.zeros((Njet, PAD), np.float32)
 MSK = np.zeros((Njet, PAD), np.float32)
 for g in range(Njet):
     cp = P[JCI[JCO[g]:JCO[g+1]]]
-    ANG[g], Z[g], MSK[g] = featurize(cp, jy[g], jphi[g])
+    ANG[g], Z[g], MSK[g] = featurize(cp, jy[g], jphi[g], PAD)
 
 # split treino/val POR EVENTO (evita vazamento entre jatos do mesmo evento)
 nev = len(JEO)-1
@@ -118,35 +91,6 @@ Y_t = t((target - mu)/sd)
 # ----------------------------------------------------------------------
 # 2) Modelos
 # ----------------------------------------------------------------------
-def mlp(sizes):
-    layers = []
-    for a, b in zip(sizes[:-1], sizes[1:]):
-        layers += [nn.Linear(a, b), nn.ReLU()]
-    return nn.Sequential(*layers[:-1])           # sem ReLU na saida
-
-class EFN(nn.Module):
-    """IRC-safe: Phi ve so angulo; agregacao ponderada por z."""
-    def __init__(self):
-        super().__init__()
-        self.Phi = mlp([2, 128, 128, 128, L])
-        self.F   = mlp([L, 128, 128, 1])
-    def forward(self, ang, z, msk):
-        phi = self.Phi(ang * RINV)                # (B,PAD,L)
-        agg = (z.unsqueeze(-1) * phi).sum(1)      # z=0 no padding zera contrib.
-        return self.F(agg).squeeze(-1)
-
-class PFN(nn.Module):
-    """NAO IRC-safe: Phi ve z; agregacao por soma simples (mascarada)."""
-    def __init__(self):
-        super().__init__()
-        self.Phi = mlp([3, 128, 128, 128, L])
-        self.F   = mlp([L, 128, 128, 1])
-    def forward(self, ang, z, msk):
-        feat = torch.cat([z.unsqueeze(-1), ang * RINV], dim=-1)   # (B,PAD,3)
-        phi = self.Phi(feat) * msk.unsqueeze(-1)                  # zera padding
-        agg = phi.sum(1)
-        return self.F(agg).squeeze(-1)
-
 # ----------------------------------------------------------------------
 # 3) Treino
 # ----------------------------------------------------------------------
@@ -213,12 +157,12 @@ test_g = vi[:3000]                              # subconjunto de val
 dEFN = {"colinear": [], "soft": []}; dPFN = {"colinear": [], "soft": []}
 for g in test_g:
     cp = P[JCI[JCO[g]:JCO[g+1]]]
-    base_f = featurize(cp, jy[g], jphi[g])
+    base_f = featurize(cp, jy[g], jphi[g], PAD)
     b_efn = predict(efn, base_f[0][None], base_f[1][None], base_f[2][None])[0]
     b_pfn = predict(pfn, base_f[0][None], base_f[1][None], base_f[2][None])[0]
     sg = SCALE[g]                                # converte Δalvo -> Δmassa em GeV
     for pert, fn in [("colinear", split_collinear(cp)), ("soft", add_soft(cp, jy[g]))]:
-        f = featurize(fn, jy[g], jphi[g])        # MESMO eixo de referencia
+        f = featurize(fn, jy[g], jphi[g], PAD)   # MESMO eixo de referencia
         dEFN[pert].append(abs(predict(efn, f[0][None], f[1][None], f[2][None])[0] - b_efn) * sg)
         dPFN[pert].append(abs(predict(pfn, f[0][None], f[1][None], f[2][None])[0] - b_pfn) * sg)
 

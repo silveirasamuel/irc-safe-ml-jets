@@ -8,7 +8,6 @@ def img(path):
 
 IMG = {
     "DBSCAN":  img("figures/licao_irc_dbscan.png"),
-    "EFNLOW":  img("figures/efn_resultados.png"),
     "EFNBOOST":img("figures/efn_resultados_boosted.png"),
     "SCALING": img("figures/teste_irc_scaling.png"),
     "PHASEA":  img("figures/phase_a_genkt.png"),
@@ -26,7 +25,8 @@ PA = dict(
     irc_ak=f(D["irc"]["anti-kt (p=-1)"]["soft"][0],4),
     irc_ca=f(D["irc"]["C/A (p=0)"]["soft"][0],4),
     irc_kt=f(D["irc"]["kt (p=+1)"]["soft"][0],4),
-    irc_st=f(D["irc"]["aprendido (p=-1)"]["soft"][0],4),
+    # chave do algoritmo aprendido: busca por prefixo (o p* exato varia entre runs)
+    irc_st=f(D["irc"][next(k for k in D["irc"] if k.startswith("aprendido"))]["soft"][0],4),
     irc_db=f(D["irc"]["DBSCAN"]["soft"][0],4),
 )
 
@@ -330,7 +330,7 @@ ol.refs li::before{content:"["counter(r)"]";position:absolute;left:0;font-family
 """
 
 REPL = {
-    "@@IMG_DBSCAN@@": IMG["DBSCAN"], "@@IMG_EFNLOW@@": IMG["EFNLOW"],
+    "@@IMG_DBSCAN@@": IMG["DBSCAN"],
     "@@IMG_EFNBOOST@@": IMG["EFNBOOST"], "@@IMG_SCALING@@": IMG["SCALING"],
     "@@IMG_PHASEA@@": IMG["PHASEA"],
     "@@OBJ_AK@@": PA["obj_ak"], "@@OBJ_STAR@@": PA["obj_star"],

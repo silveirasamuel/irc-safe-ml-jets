@@ -6,12 +6,12 @@ de correlacao, RMSE e resposta IRC (soft/colinear) no sample BOOSTED (alvo m/pT)
 O split treino/val e' FIXO (mesmo val em todas as seeds); so a inicializacao dos
 pesos e a ordem de shuffle variam com a seed. Nao altera os pesos/figuras canonicos.
 
-Roda:  ./venv/bin/python seeds_efn.py [N_SEEDS]
+Roda da raiz do repo:  python src/seeds_efn.py [N_SEEDS]
 """
 import sys, json, numpy as np, torch, torch.nn as nn
+from common import kin, featurize, EFN, PFN
 
 N_SEEDS = int(sys.argv[1]) if len(sys.argv) > 1 else 5
-L, RINV = 128, 2.5
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 print(f">> device = {DEV}  ({torch.cuda.get_device_name(0) if DEV=='cuda' else 'CPU'})")
 
@@ -21,17 +21,6 @@ P = d["particles"].astype(np.float64); J = d["jets"].astype(np.float64)
 JEO = d["jet_event_offsets"]; JCO = d["jet_const_offsets"]; JCI = d["jet_const_index"]
 Njet = len(J); PAD = int(np.diff(JCO).max()) + 2
 
-def kin(p4):
-    px,py,pz,E = p4[...,0],p4[...,1],p4[...,2],p4[...,3]
-    pt = np.hypot(px,py); y = 0.5*np.log(np.clip((E+pz)/np.clip(E-pz,1e-12,None),1e-12,None))
-    return pt,y,np.arctan2(py,px)
-def dphi(a,b): return np.arctan2(np.sin(a-b),np.cos(a-b))
-def featurize(cp, ay, aphi):
-    pt,y,phi = kin(cp); o = np.argsort(-pt)[:PAD]; pt,y,phi = pt[o],y[o],phi[o]
-    z = pt/pt.sum(); n = len(pt)
-    ang = np.zeros((PAD,2),np.float32); zz = np.zeros(PAD,np.float32); mk = np.zeros(PAD,np.float32)
-    ang[:n,0] = y-ay; ang[:n,1] = dphi(phi,aphi); zz[:n] = z; mk[:n] = 1.
-    return ang,zz,mk
 
 jpx,jpy,jpz,jE = J[:,0],J[:,1],J[:,2],J[:,3]
 m_jet = np.sqrt(np.clip(jE**2-jpx**2-jpy**2-jpz**2,0,None)).astype(np.float32)
@@ -41,7 +30,7 @@ target = (m_jet/pt_jet).astype(np.float32); SCALE = pt_jet   # m/pT -> massa via
 print(f">> featurizando {Njet} jatos (PAD={PAD})...")
 ANG = np.zeros((Njet,PAD,2),np.float32); Z = np.zeros((Njet,PAD),np.float32); MSK = np.zeros((Njet,PAD),np.float32)
 for g in range(Njet):
-    ANG[g],Z[g],MSK[g] = featurize(P[JCI[JCO[g]:JCO[g+1]]], jy[g], jphi[g])
+    ANG[g],Z[g],MSK[g] = featurize(P[JCI[JCO[g]:JCO[g+1]]], jy[g], jphi[g], PAD)
 
 # split FIXO (independente da seed do modelo)
 nev = len(JEO)-1
@@ -54,19 +43,6 @@ mu, sd = target[trn].mean(), target[trn].std()
 ANG_t = torch.tensor(ANG,device=DEV); Z_t = torch.tensor(Z,device=DEV); MSK_t = torch.tensor(MSK,device=DEV)
 Y_t = torch.tensor((target-mu)/sd,device=DEV)
 vi = np.where(val)[0]
-
-def mlp(s):
-    l=[]
-    for a,b in zip(s[:-1],s[1:]): l+=[nn.Linear(a,b),nn.ReLU()]
-    return nn.Sequential(*l[:-1])
-class EFN(nn.Module):
-    def __init__(s): super().__init__(); s.Phi=mlp([2,128,128,128,L]); s.F=mlp([L,128,128,1])
-    def forward(s,ang,z,m): return s.F(((z.unsqueeze(-1))*s.Phi(ang*RINV)).sum(1)).squeeze(-1)
-class PFN(nn.Module):
-    def __init__(s): super().__init__(); s.Phi=mlp([3,128,128,128,L]); s.F=mlp([L,128,128,1])
-    def forward(s,ang,z,m):
-        f=torch.cat([z.unsqueeze(-1),ang*RINV],-1)
-        return s.F((s.Phi(f)*m.unsqueeze(-1)).sum(1)).squeeze(-1)
 
 def train(model, epochs=80, bs=256):
     opt=torch.optim.Adam(model.parameters(),lr=1e-3)
@@ -98,9 +74,9 @@ def predict_one(model, f):
 def irc(model):
     gs = vi[:1200]; dc=[]; ds=[]
     for g in gs:
-        cp=P[JCI[JCO[g]:JCO[g+1]]]; base=predict_one(model,featurize(cp,jy[g],jphi[g])); sg=SCALE[g]
-        dc.append(abs(predict_one(model,featurize(split_col(cp),jy[g],jphi[g]))-base)*sg)
-        ds.append(abs(predict_one(model,featurize(add_soft(cp,jy[g]),jy[g],jphi[g]))-base)*sg)
+        cp=P[JCI[JCO[g]:JCO[g+1]]]; base=predict_one(model,featurize(cp,jy[g],jphi[g],PAD)); sg=SCALE[g]
+        dc.append(abs(predict_one(model,featurize(split_col(cp),jy[g],jphi[g],PAD))-base)*sg)
+        ds.append(abs(predict_one(model,featurize(add_soft(cp,jy[g]),jy[g],jphi[g],PAD))-base)*sg)
     return float(np.mean(dc)), float(np.mean(ds))
 
 def corr(a,b): return float(np.corrcoef(a,b)[0,1])

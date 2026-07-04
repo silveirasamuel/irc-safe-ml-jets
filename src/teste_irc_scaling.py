@@ -6,45 +6,23 @@ IR safety <=> o efeito de uma particula soft -> 0 quando seu pT -> 0.
    EFN:  <|dm|> propto pT_soft            -> 0     (SAFE)
    PFN:  <|dm|> -> constante != 0                  (UNSAFE: Phi(z=0,theta) fixo)
 
-Colinear safety <=> dividir 1 particula em 2 colineares nao muda nada, p/ QUALQUER fracao z.
-   EFN:  <|dm|> = 0  exatamente, para todo z       (SAFE)
-   PFN:  <|dm|> != 0                                (UNSAFE)
+Colinear safety <=> dividir 1 particula em 2 vira nada quando o angulo theta->0.
+   EFN:  <|dm|> propto theta^~2 -> 0                (SAFE)  [+ exato p/ theta=0, todo z]
+   PFN:  <|dm|> -> constante != 0                   (UNSAFE)
 
-Reusa os pesos treinados em efn.py (efn_pesos.pt), sem retreinar.
-Roda no venv:  ./venv/bin/python teste_irc_scaling.py
+Reusa os pesos treinados em efn.py (results/efn_pesos.pt), sem retreinar.
+Roda da raiz do repo:  python src/teste_irc_scaling.py
 """
-import numpy as np, torch, torch.nn as nn
+import numpy as np, torch
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+from common import kin, featurize, EFN, PFN
 
-PAD, L, RINV = 60, 128, 2.5
-def mlp(s):
-    l=[];
-    for a,b in zip(s[:-1],s[1:]): l+=[nn.Linear(a,b), nn.ReLU()]
-    return nn.Sequential(*l[:-1])
-class EFN(nn.Module):
-    def __init__(s): super().__init__(); s.Phi=mlp([2,128,128,128,L]); s.F=mlp([L,128,128,1])
-    def forward(s,ang,z,m): return s.F(((z.unsqueeze(-1))*s.Phi(ang*RINV)).sum(1)).squeeze(-1)
-class PFN(nn.Module):
-    def __init__(s): super().__init__(); s.Phi=mlp([3,128,128,128,L]); s.F=mlp([L,128,128,1])
-    def forward(s,ang,z,m):
-        f=torch.cat([z.unsqueeze(-1),ang*RINV],-1)
-        return s.F((s.Phi(f)*m.unsqueeze(-1)).sum(1)).squeeze(-1)
+PAD = 60
 
 W = torch.load("results/efn_pesos.pt"); mu, sd = W["mu"], W["sd"]
 efn=EFN(); efn.load_state_dict(W["efn"]); efn.eval()
 pfn=PFN(); pfn.load_state_dict(W["pfn"]); pfn.eval()
 
-def kin(p4):
-    px,py,pz,E=p4[...,0],p4[...,1],p4[...,2],p4[...,3]
-    pt=np.hypot(px,py); y=0.5*np.log(np.clip((E+pz)/np.clip(E-pz,1e-12,None),1e-12,None))
-    return pt,y,np.arctan2(py,px)
-def dphi(a,b): return np.arctan2(np.sin(a-b),np.cos(a-b))
-def featurize(cp, ay, aphi):
-    pt,y,phi=kin(cp); o=np.argsort(-pt)[:PAD]; pt,y,phi=pt[o],y[o],phi[o]
-    z=pt/pt.sum(); n=len(pt)
-    ang=np.zeros((PAD,2),np.float32); zz=np.zeros(PAD,np.float32); mk=np.zeros(PAD,np.float32)
-    ang[:n,0]=y-ay; ang[:n,1]=dphi(phi,aphi); zz[:n]=z; mk[:n]=1.
-    return ang,zz,mk
 def pred(model, feats):
     A=torch.tensor(np.stack([f[0] for f in feats]))
     Z=torch.tensor(np.stack([f[1] for f in feats]))
@@ -60,7 +38,7 @@ NT=1500
 gs=np.arange(len(J))[-NT:]                     # ultimos NT jatos (fora do treino tipico)
 consts=[P[JCI[JCO[g]:JCO[g+1]]] for g in gs]
 axis=[(jy[g],jphi[g]) for g in gs]
-base_f=[featurize(c,*a) for c,a in zip(consts,axis)]
+base_f=[featurize(c,*a,PAD) for c,a in zip(consts,axis)]
 b_efn=pred(efn,base_f); b_pfn=pred(pfn,base_f)
 
 rng=np.random.default_rng(2)
@@ -75,7 +53,7 @@ for ptS in pts:
         yy=a[0]+ang_soft[k]; ph=phi_soft[k]
         px,py,pz=ptS*np.cos(ph),ptS*np.sin(ph),ptS*np.sinh(yy)
         cp=np.vstack([c,[px,py,pz,np.sqrt(px*px+py*py+pz*pz)]])
-        fe.append(featurize(cp,*a))
+        fe.append(featurize(cp,*a,PAD))
     ir_efn.append(np.mean(np.abs(pred(efn,fe)-b_efn)))
     ir_pfn.append(np.mean(np.abs(pred(pfn,fe)-b_pfn)))
 
@@ -91,7 +69,7 @@ for th in thetas:
             px,py_,pz=0.5*pt0*np.cos(phi0),0.5*pt0*np.sin(phi0),0.5*pt0*np.sinh(yy)
             return [px,py_,pz,np.sqrt(px*px+py_*py_+pz*pz)]
         cp=np.vstack([np.delete(c,i,0), daughter(y0+th/2), daughter(y0-th/2)])
-        fe.append(featurize(cp,*a))
+        fe.append(featurize(cp,*a,PAD))
     th_efn.append(np.mean(np.abs(pred(efn,fe)-b_efn)))
     th_pfn.append(np.mean(np.abs(pred(pfn,fe)-b_pfn)))
 
@@ -103,7 +81,7 @@ for zf in zs:
     for c,a in zip(consts,axis):
         pt,_,_=kin(c); i=int(np.argmax(pt))
         cp=np.vstack([np.delete(c,i,0), zf*c[i], (1-zf)*c[i]])
-        fe.append(featurize(cp,*a))
+        fe.append(featurize(cp,*a,PAD))
     co_efn.append(np.mean(np.abs(pred(efn,fe)-b_efn)))
     co_pfn.append(np.mean(np.abs(pred(pfn,fe)-b_pfn)))
 
@@ -123,7 +101,7 @@ for p,e,f in zip(pts,ir_efn,ir_pfn): print(f"  pT={p:.1e}  EFN={e:.2e}  PFN={f:.
 print("== ESCALA COLINEAR-ANGULO (theta -> <|dm|> GeV) ==")
 for t,e,f in zip(thetas,th_efn,th_pfn): print(f"  theta={t:.1e}  EFN={e:.2e}  PFN={f:.2e}")
 print(f"\n>> EFN soft slope   = {soft_slope:.2f}  (esperado ~1)")
-print(f">> EFN theta slope  = {theta_slope:.2f}  (esperado ~1)")
+print(f">> EFN theta slope  = {theta_slope:.2f}  (esperado ~2: termo linear cancela por simetria)")
 print(f">> PFN soft plateau = {pfn_soft_plateau:.2f} GeV ; PFN theta plateau = {pfn_theta_plateau:.2f} GeV")
 import json as _json
 _json.dump({"soft_slope":soft_slope,"theta_slope":theta_slope,

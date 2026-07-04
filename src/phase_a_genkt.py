@@ -16,7 +16,7 @@ Depois:
       mesma bateria de perturbacao do licao_irc_dbscan.py, contrastando com DBSCAN;
   (2) compara-se o algoritmo aprendido com o anti-kt padrao.
 
-Roda no venv:  ./venv/bin/python phase_a_genkt.py
+Roda da raiz do repo:  python src/phase_a_genkt.py
 """
 import json
 import numpy as np
