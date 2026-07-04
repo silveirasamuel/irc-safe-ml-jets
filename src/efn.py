@@ -179,8 +179,9 @@ for name, dd in [("EFN (safe)", dEFN), ("PFN (unsafe)", dPFN)]:
     print(f"{name:22}{np.mean(dd['colinear']):>14.5f}{np.mean(dd['soft']):>14.5f}")
 print("="*66)
 
-torch.save({"efn": efn.state_dict(), "pfn": pfn.state_dict(), "target": TARGET,
-            "mu": float(mu), "sd": float(sd)}, WPT)
+if not os.environ.get("REPLOT"):        # em REPLOT so re-plota; nao re-salva os pesos
+    torch.save({"efn": efn.state_dict(), "pfn": pfn.state_dict(), "target": TARGET,
+                "mu": float(mu), "sd": float(sd)}, WPT)
 
 plt.rcParams.update({"font.size": 11, "figure.dpi": 120})
 fig, ax = plt.subplots(2, 2, figsize=(11, 9))
