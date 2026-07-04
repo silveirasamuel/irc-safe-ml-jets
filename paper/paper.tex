@@ -57,12 +57,12 @@ IRC-\emph{unsafe}: a single $\ptsoft=10^{-3}$~GeV particle alters the reconstruc
 in $6.3\%$ of events. (ii) An Energy Flow Network (EFN), whose energy-weighted Deep-Sets
 architecture enforces IRC safety \emph{by construction}, reproduces the \antikt{} jet mass
 (correlation $0.996$ on boosted jets) while remaining exactly IRC-safe: its response to a
-soft emission scales linearly with the emission momentum and vanishes in the limit, whereas
-an unconstrained Particle Flow Network of equal accuracy saturates at a finite plateau.
-(iii) We build a \emph{learnable} jet algorithm by treating the generalized-$\kt$ energy
-exponent and radius as free parameters and optimizing them against a genuine physics
-objective (jet--parton energy response); every member of the family is IRC-safe, and the
-optimum rediscovers the \antikt{} exponent $p=-1$ at a mildly enlarged radius. The unifying
+soft or collinear perturbation vanishes as a power law in the limit, whereas an
+unconstrained Particle Flow Network of equal accuracy saturates at a finite plateau.
+(iii) We show that the clustering itself can be made learnable while keeping safety exact:
+optimizing the generalized-$\kt$ exponent and radius --- a low-dimensional but provably safe
+family --- against a genuine physics objective (jet--parton energy response) rediscovers the
+\antikt{} exponent $p=-1$ at a mildly enlarged radius. The unifying
 lesson: in physics-oriented machine learning, IRC safety must be imposed as a design
 constraint, never chased as a training target.
 \end{abstract}
@@ -93,7 +93,7 @@ These invariances are exactly the conditions under which the real and virtual in
 divergences of QCD cancel~\cite{sterman,salam}: an IRC-unsafe quantity is not merely noisy,
 it is formally incalculable order by order in perturbation theory.
 
-The de-facto standard at the LHC is the \antikt{} algorithm~\cite{antikt}, a
+The de facto standard at the LHC is the \antikt{} algorithm~\cite{antikt}, a
 sequential-recombination method that satisfies~\eqref{eq:coll}--\eqref{eq:ir} by
 construction and produces geometrically regular jets. As machine learning permeates jet
 physics, a tempting shortcut is to replace the algorithm with a generic clustering or a
@@ -101,11 +101,15 @@ neural network trained on data. The central point of this work is that such a su
 silently forfeits IRC safety unless the safety is \emph{built into the architecture}: no
 amount of training data confers an exact symmetry that the function class does not possess.
 
-We make this concrete along three axes and contribute (a) a reusable, quantitative
-IRC-safety test battery based on the explicit perturbations~\eqref{eq:coll}--\eqref{eq:ir}
-and their scaling laws; (b) a controlled demonstration that energy weighting --- the Energy
-Flow Network prescription~\cite{efn} --- restores exact safety where a naive network fails;
-and (c) a learnable-yet-provably-safe jet algorithm obtained by optimizing the
+That energy-weighted, permutation-invariant networks can encode IRC-safe observables is
+established --- Energy Flow Networks~\cite{efn} and the complete linear basis of energy flow
+polynomials~\cite{efp} are the known constructions. Our aim is not a new safe observable but
+a sharp, reusable \emph{diagnostic} of safety. We contribute (a) a quantitative IRC-safety
+test battery, built from the explicit perturbations~\eqref{eq:coll}--\eqref{eq:ir} and their
+scaling laws; (b) using it, a controlled comparison in which an energy-weighted network is
+safe to machine precision while an otherwise-identical unconstrained network is not ---
+isolating energy weighting as the single decisive architectural ingredient; and (c) a
+learnable-yet-provably-safe jet \emph{algorithm}, obtained by optimizing the
 generalized-$\kt$ family against a physics objective.
 
 % ===========================================================================
@@ -267,7 +271,7 @@ $\Phi(0,\hat y,\hat\phi)\neq0$ that does not vanish as $\ptsoft\to0$, and a coll
 splitting gives $\Phi(z^{(1)}\!,\cdot)+\Phi(z^{(2)}\!,\cdot)\neq\Phi(z,\cdot)$ because
 $\Phi$ is nonlinear in $z$.
 
-\subsection{Equal accuracy, unequal safety}
+\subsection{Equal accuracy, unequal safety}\label{sec:equal}
 Both networks share the same backbone (per-particle MLP $2/3\!\to\!128\!\to\!128\!\to\!128$,
 latent dimension $128$, aggregation, and an MLP head), and are trained with
 Adam for 80 epochs. On boosted jets they are statistically indistinguishable as mass
@@ -348,10 +352,10 @@ the PFN is not.}
 \section{A learned, provably safe jet algorithm}
 % ===========================================================================
 Sections~4--5 concern observables computed \emph{on} jets. We now make the clustering itself
-learnable while keeping IRC safety exact. Rather than a non-differentiable neural partition,
-we treat the generalized-$\kt$ measure~\eqref{eq:genkt} as a two-parameter model --- energy
-exponent $p$ and radius $R$ --- and optimize it against a real physics objective on the
-boosted sample. Matching reconstructed jets to the outgoing hard partons (\textsc{Pythia}
+learnable while keeping IRC safety exact, as a proof of concept within a low-dimensional but
+provably safe family. Rather than a non-differentiable neural partition, we treat the
+generalized-$\kt$ measure~\eqref{eq:genkt} as a two-parameter model --- energy exponent $p$
+and radius $R$ --- and optimize it against a real physics objective on the boosted sample. Matching reconstructed jets to the outgoing hard partons (\textsc{Pythia}
 status $\pm23$) within $\dR<0.35$, we define the energy response and its figure of merit
 \begin{equation}
 r = \frac{p_T^{\,\mathrm{jet}}}{p_T^{\,\mathrm{parton}}},
@@ -435,7 +439,10 @@ targets a single observable; the EFN's low correlation on low-$\pt$ jets is itse
 --- at that scale the IRC-safe information content of the mass is genuinely small --- and it
 rises to $0.996$ once the mass becomes a real scale. All results are at particle level
 without detector effects or pileup, whose interaction with IRC safety is an important
-separate axis.
+separate axis. Finally, all quoted numbers derive from the finite samples of
+Table~\ref{tab:samples}; the sensitivity of the network results to initialization is
+quantified in Sec.~\ref{sec:equal}, and the central claim of the scaling laws --- exact
+vanishing versus a finite plateau --- does not depend on sample size.
 
 \paragraph{Takeaway.}
 IRC safety is an exact symmetry of the physics, not a statistic. A model is safe only if its
