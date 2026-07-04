@@ -1,0 +1,13 @@
+# Python packages for the analysis and paper build.
+# NOTE: PYTHIA 8.3 (pythia8) and FastJet 3.5 (fastjet) are NOT on PyPI — build them
+# from source with their Python bindings. See README.md.
+#
+# Versions below are those used to produce the paper (CPU PyTorch build).
+# For GPU training, install a CUDA wheel instead, e.g.:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+
+numpy>=2.2
+scipy>=1.15
+scikit-learn>=1.5
+matplotlib>=3.9
+torch>=2.6
